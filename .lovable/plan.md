@@ -5,20 +5,27 @@ A camera-based form coach that runs entirely in the browser on the phone. No vid
 ## Scope agreed
 - Mobile web app (installable to home screen), not React Native
 - Exercises: Squat and Push-up
-- No login, no saved history — summary shown at end of session only
+- No login. Sessions are saved locally on the device (browser storage) so the user gets a personal history — nothing is uploaded.
 
 ## User flow
 ```text
-[ Exercise Select ] -> [ Camera Setup & Calibration ] -> [ Live Tracking ] -> [ Summary ]
-     Squat/Push-up        full body in frame check         reps + cues        reps, flags, score
+[ Exercise Select ] -> [ Camera Setup & Calibration ] -> [ Live Tracking ] -> [ Summary ] -> [ History ]
+     Squat/Push-up        full body in frame check         reps + cues        reps, flags, score   past sessions
 ```
 
 ## Screens
-1. **Home / Exercise select** (`/`) — pick Squat or Push-up, short "how to set up your phone" guidance, Start button.
+1. **Home / Exercise select** (`/`) — pick Squat or Push-up, short "how to set up your phone" guidance, Start button, plus a compact "recent sessions" strip and a link to full history.
 2. **Session** (`/session/$exercise`) — three phases in one route:
    - *Calibration*: live camera with a body-outline guide; waits until all required joints are detected above confidence 0.5 for ~1.5s, then counts down 3-2-1.
    - *Tracking*: camera feed + skeleton overlay, rep counter, form-quality badge, correction banner, spoken cues, pause/end controls.
-   - *Summary*: total reps, clean vs flagged reps, form score %, breakdown of most common errors, buttons to redo or pick another exercise.
+   - *Summary*: total reps, clean vs flagged reps, form score %, breakdown of most common errors, duration. Auto-saved to local history, with buttons to redo, view history, or pick another exercise.
+3. **History** (`/history`) — list of past sessions newest first (date, exercise, reps, form score), simple stats header (total sessions, total reps, best form score, 7-day trend), tap a session to expand its error breakdown, delete one session, and clear all history.
+
+## Local session history
+- Stored in `localStorage` under a versioned key, as a JSON array of session records: id, ISO timestamp, exercise, duration, total/clean/flagged reps, form score, error counts by type.
+- Capped at the 100 most recent sessions; oldest trimmed automatically.
+- Read/write behind a small storage module with safe parsing and a hydration-safe hook, so SSR renders an empty state and history appears after mount.
+- Clear-all and per-item delete with a confirm step. Data stays on the device; clearing browser data removes it — stated plainly in the UI.
 
 ## How the AI works
 - Camera via `getUserMedia` (front/back toggle), rendered into a `<video>` element.
@@ -53,10 +60,10 @@ Dark athletic UI — near-black background, high-contrast lime/amber/red state c
 
 ## Technical notes
 - Packages: `@tensorflow/tfjs-core`, `@tensorflow/tfjs-backend-webgl`, `@tensorflow-models/pose-detection`.
-- New files: rewritten `src/routes/index.tsx`, `src/routes/session.$exercise.tsx`, `src/lib/pose/{detector,geometry,squat,pushup,types}.ts`, `src/components/{CameraStage,SkeletonOverlay,TrackingHUD,CalibrationGuide,SummaryPanel}.tsx`, `src/hooks/useSpeechCues.ts`.
+- New files: rewritten `src/routes/index.tsx`, `src/routes/session.$exercise.tsx`, `src/routes/history.tsx`, `src/lib/pose/{detector,geometry,squat,pushup,types}.ts`, `src/lib/history.ts`, `src/hooks/useSessionHistory.ts`, `src/components/{CameraStage,SkeletonOverlay,TrackingHUD,CalibrationGuide,SummaryPanel,SessionCard}.tsx`, `src/hooks/useSpeechCues.ts`.
 - Camera and TF modules load client-side only (dynamic import behind a hydration gate) so SSR never touches browser APIs.
 - Manifest-only PWA metadata (`public/manifest.webmanifest`, icons, theme-color) for home-screen install; no service worker or offline caching.
-- Route-level `head()` metadata on both routes.
+- Route-level `head()` metadata on all three routes.
 
 ## Known limitations
 - Requires HTTPS and camera permission; on iOS the camera works in Safari or the installed app.
